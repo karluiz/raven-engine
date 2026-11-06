@@ -524,6 +524,28 @@ static float rvn_x11_window_get_scale(rvn_pwindow_t* window) {
 	return g_x11.scale;
 }
 
+static void rvn_x11_window_set_icon(rvn_pwindow_t* window, const uint8_t* rgba, int width, int height) {
+	Atom property = XInternAtom(g_x11.display, "_NET_WM_ICON", False);
+	if (!rgba || width <= 0 || height <= 0) {
+		XDeleteProperty(g_x11.display, window->handle, property);
+		return;
+	}
+	size_t count = (size_t)width * (size_t)height;
+	unsigned long* icon = malloc((count + 2) * sizeof(*icon));
+	if (!icon) return;
+	icon[0] = (unsigned long)width;
+	icon[1] = (unsigned long)height;
+	for (size_t i = 0; i < count; i++) {
+		const uint8_t* pixel = rgba + i * 4;
+		icon[i + 2] = ((unsigned long)pixel[3] << 24) | ((unsigned long)pixel[0] << 16) |
+			((unsigned long)pixel[1] << 8) | (unsigned long)pixel[2];
+	}
+	XChangeProperty(g_x11.display, window->handle, property, XA_CARDINAL, 32, PropModeReplace,
+		(const unsigned char*)icon, (int)(count + 2));
+	free(icon);
+	XFlush(g_x11.display);
+}
+
 static void rvn_x11_window_show(rvn_pwindow_t* window, int visible) {
 	if (visible) XMapRaised(g_x11.display, window->handle);
 	else XWithdrawWindow(g_x11.display, window->handle, g_x11.screen);
@@ -1298,6 +1320,7 @@ const rvn_platform_t* rvn_platform_x11(void) {
 		.window_set_size = rvn_x11_window_set_size,
 		.window_get_size = rvn_x11_window_get_size,
 		.window_set_min_size = rvn_x11_window_set_min_size,
+		.window_set_icon = rvn_x11_window_set_icon,
 		.window_set_position = rvn_x11_window_set_position,
 		.window_get_position = rvn_x11_window_get_position,
 		.window_get_scale = rvn_x11_window_get_scale,

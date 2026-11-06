@@ -344,7 +344,7 @@ static void rvn_tab_view_paint(rvn_widget_t* widget, RPainter* painter) {
 	rvn_paint_rect(painter, rvn_rect(0.0f, bar - 1.0f, widget->rect.w, 1.0f), rvn_widget_color(widget, R_COLOR_SEPARATOR));
 	if (tabs->active >= 0 && mark_w > 0.0f) {
 		rvn_paint_rect(painter, rvn_rect(mark_x, 0.0f, mark_w, bar), rvn_widget_color(widget, R_COLOR_TAB_ACTIVE));
-		rvn_paint_rect(painter, rvn_rect(mark_x, 0.0f, mark_w, 2.0f), rvn_widget_color(widget, R_COLOR_ACCENT));
+		rvn_paint_rect(painter, rvn_rect(mark_x, bar - 2.0f, mark_w, 2.0f), rvn_widget_color(widget, R_COLOR_ACCENT));
 	}
 	for (i = 0; i < widget->child_count; i++) {
 		float width = rvn_tab_width(widget, widget->children[i]);

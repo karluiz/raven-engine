@@ -15,6 +15,7 @@ typedef struct rvn_border_t {
 	int has_radii;
 	float outline_width;
 	rvn_color_t outline_color;
+	int outline_themed;
 	float shadow_blur;
 	rvn_vec2_t shadow_offset;
 	/* an effect as the background (raven_shader.h), or R_INVALID_ID */
@@ -84,6 +85,7 @@ static void rvn_border_paint(rvn_widget_t* widget, RPainter* painter) {
 	rvn_border_t* border = (rvn_border_t*)widget;
 	rvn_rect_t rect = rvn_rect(0.0f, 0.0f, widget->rect.w, widget->rect.h);
 	float radii[4];
+	rvn_color_t outline = border->outline_themed ? rvn_widget_color(widget, R_COLOR_BORDER) : border->outline_color;
 	int i;
 
 	/* (a border without a color is only a padding) */
@@ -111,7 +113,7 @@ static void rvn_border_paint(rvn_widget_t* widget, RPainter* painter) {
 			}
 			rvn_paint_shader(painter, rect, radii, border->effect, &look);
 		}
-		if (border->outline_width > 0.0f) rvn_paint_box4(painter, rect, radii, 0, border->outline_width, border->outline_color);
+		if (border->outline_width > 0.0f) rvn_paint_box4(painter, rect, radii, 0, border->outline_width, outline);
 		return;
 	}
 	if (rvn_widget_glass(widget)) {
@@ -134,7 +136,7 @@ static void rvn_border_paint(rvn_widget_t* widget, RPainter* painter) {
 			radii[0], border->shadow_blur, rvn_widget_color(widget, R_COLOR_SHADOW));
 	}
 	rvn_paint_box4(painter, rect, radii, rvn_widget_color(widget, R_COLOR_PANEL),
-		border->outline_width, border->outline_width > 0.0f ? border->outline_color : 0);
+		border->outline_width, border->outline_width > 0.0f ? outline : 0);
 }
 
 static int rvn_border_set_attribute(rvn_widget_t* widget, const char* name, const char* value) {
@@ -151,10 +153,14 @@ static int rvn_border_set_attribute(rvn_widget_t* widget, const char* name, cons
 		rvn_widget_set_color(widget, R_COLOR_PANEL, color);
 	} else if (RVN_ATTR("BorderColor")) {
 		if (!rvn_parse_color(value, &border->outline_color)) return R_FALSE;
+		border->outline_themed = R_FALSE;
 		if (border->outline_width <= 0.0f) border->outline_width = 1.0f;
 	} else if (RVN_ATTR("BorderWidth")) {
 		if (!rvn_parse_float(value, &border->outline_width)) return R_FALSE;
-		if (rvn_color_a(border->outline_color) == 0) border->outline_color = rvn_widget_color(widget, R_COLOR_BORDER);
+		if (rvn_color_a(border->outline_color) == 0) {
+			border->outline_color = rvn_widget_color(widget, R_COLOR_BORDER);
+			border->outline_themed = R_TRUE;
+		}
 	} else if (RVN_ATTR("CornerRadius")) {
 		count = rvn_parse_floats(value, values, 4);
 		if (count != 1 && count != 4) return R_FALSE;
@@ -256,6 +262,7 @@ void Rborder_set_outline(Rid id, float width, float r, float g, float b, float a
 	RVN_WIDGET_VOID(widget, id, R_WIDGET_BORDER);
 	((rvn_border_t*)widget)->outline_width = width > 0.0f ? width : 0.0f;
 	((rvn_border_t*)widget)->outline_color = rvn_rgba(r, g, b, a);
+	((rvn_border_t*)widget)->outline_themed = R_FALSE;
 	rvn_widget_invalidate_paint(widget);
 }
 

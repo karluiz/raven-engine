@@ -104,6 +104,28 @@ static void test_shapes(void) {
 	Rwindow_destroy(window);
 }
 
+static void test_border_theme(void) {
+	Rid window = window_from(
+		"<Window Width=\"80\" Height=\"80\"><Canvas>"
+		"  <Border Name=\"outline\" Slot.Position=\"10,10\" Slot.Size=\"40,40\" BorderWidth=\"1\"/>"
+		"</Canvas></Window>");
+	Rid border = Rwidget_find(window, "outline");
+	float r, g, b, a;
+
+	Rtheme_apply(R_THEME_DARK);
+	capture(window);
+	Rtheme_apply(R_THEME_LIGHT);
+	Rtheme_get_color(R_COLOR_BORDER, &r, &g, &b, &a);
+	capture(window);
+	CHECK_PIXEL(30, 10, (int)(r * 255.0f + 0.5f), (int)(g * 255.0f + 0.5f), (int)(b * 255.0f + 0.5f));
+
+	Rwidget_set_attribute(border, "BorderColor", "#112233");
+	Rtheme_apply(R_THEME_DARK);
+	capture(window);
+	CHECK_PIXEL(30, 10, 0x11, 0x22, 0x33);
+	Rwindow_destroy(window);
+}
+
 static void test_clipping(void) {
 	/* the red child is larger than its clipping parent: only the part inside is drawn */
 	Rid window = window_from(
@@ -739,6 +761,7 @@ int main(void) {
 	g_test_failures = 0;
 
 	RUN(test_shapes);
+	RUN(test_border_theme);
 	RUN(test_clipping);
 	RUN(test_textures);
 	RUN(test_text);
