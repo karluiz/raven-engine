@@ -1619,6 +1619,47 @@ int rvn_md_link_count(const rvn_md_t* md) {
 	return (int)md->link_count;
 }
 
+void rvn_md_paint_inline(const rvn_widget_t* widget, RPainter* painter, Rid font, Rid bold, Rid italic,
+	rvn_font_t* metrics_font, float size, float x, float y, const char* source, rvn_color_t color) {
+	rvn_md_t* md = rvn_md_parse(source);
+	float pen = x;
+	uint32_t b, s;
+	if (!md) return;
+	for (b = 0; b < md->block_count; b++) {
+		const rvn_md_block_t* block = &md->blocks[b];
+		if (block->type == RVN_MD_CODE_BLOCK || block->type == RVN_MD_TABLE || block->type == RVN_MD_IMAGE) {
+			rvn_paint_text(painter, font, size, pen, y + 1.0f, source, -1, color);
+			continue;
+		}
+		if (block->marker == RVN_MD_NUMBER) {
+			char marker[24];
+			int length = snprintf(marker, sizeof(marker), "%d. ", block->number);
+			rvn_paint_text(painter, font, size, pen, y + 1.0f, marker, length, color);
+			pen += rvn_text_width(metrics_font, size, marker, length);
+		} else if (block->marker != RVN_MD_NO_MARKER) {
+			const char* marker = block->marker == RVN_MD_TASK ? "[ ] " : block->marker == RVN_MD_TASK_DONE ? "[x] " : "\xE2\x80\xA2 ";
+			rvn_paint_text(painter, font, size, pen, y + 1.0f, marker, -1, color);
+			pen += rvn_text_width(metrics_font, size, marker, -1);
+		}
+		for (s = 0; s < block->span_count; s++) {
+			const rvn_md_span_t* span = &md->spans[block->first_span + s];
+			const char* content = md->text.data + span->start;
+			Rid run_font = block->type == RVN_MD_HEADING || (span->flags & RVN_MD_BOLD) ? bold :
+				(span->flags & RVN_MD_ITALIC) ? italic : font;
+			rvn_color_t run_color = span->link >= 0 ? rvn_widget_color(widget, R_COLOR_LINK) : color;
+			if (span->flags & RVN_MD_CODE) {
+				rvn_paint_box(painter, rvn_rect(pen - 2.0f, y,
+					rvn_text_width(run_font == font ? metrics_font : rvn_font_resolve(run_font), size, content, (int)span->length) + 4.0f,
+					size + 6.0f), 3.0f,
+					rvn_color_fade(rvn_widget_color(widget, R_COLOR_ACCENT), 0.08f), 0.0f, 0);
+			}
+			rvn_paint_text(painter, run_font, size, pen, y + 1.0f, content, (int)span->length, run_color);
+			pen += rvn_text_width(run_font == font ? metrics_font : rvn_font_resolve(run_font), size, content, (int)span->length);
+		}
+	}
+	rvn_md_free(md);
+}
+
 void rvn_md_plain_text(const rvn_md_t* md, rvn_text_t* out) {
 	uint32_t b, s;
 	for (b = 0; b < md->block_count; b++) {

@@ -268,6 +268,9 @@ extern "C" {
 	 */
 	RAVEN_API void Rtext_editor_set_markdown(Rid editor, int enabled);
 	RAVEN_API int Rtext_editor_get_markdown(Rid editor);
+	/** R_TRUE renders non-caret Markdown lines with native inline presentation. */
+	RAVEN_API void Rtext_editor_set_live_markdown(Rid editor, int enabled);
+	RAVEN_API int Rtext_editor_get_live_markdown(Rid editor);
 
 	/**
 	 * @brief What the language of the editor makes of the character at a

@@ -87,6 +87,7 @@ typedef struct rvn_text_editor_t {
 	uint32_t language_generation;
 	int no_pairs;
 	int no_completion;
+	int live_markdown;
 	/** Counts the changes of the text: what was computed for a version is forgotten with it. */
 	uint32_t version;
 	/** The bracket next to the caret and the one that closes it, found for (match_version, match_caret). */
@@ -705,6 +706,7 @@ static rvn_ed_pos_t rvn_ed_point_pos(const rvn_text_editor_t* ed, const rvn_ed_m
 	if (global < 0.0f) global = 0.0f;
 	if (global > (float)ed->total_rows) global = (float)ed->total_rows;
 	rvn_ed_locate_row(ed, (uint32_t)global, &line, &row);
+	if (ed->live_markdown && line != ed->caret.line) return rvn_ed_pos(line, ed->lines[line].length);
 	rvn_ed_row_range(ed, line, row, &begin, &end);
 	column = rvn_ed_offset_at(m, ed->lines[line].text, begin, end, x);
 	/* the end of a wrapped row is the position before the cut, not the start of the next row */
@@ -894,6 +896,91 @@ static void rvn_ed_update_match(rvn_text_editor_t* ed) {
 	ed->match_a = at;
 }
 
+static void rvn_ed_paint_markdown_line(rvn_text_editor_t* ed, RPainter* painter, const rvn_ed_metrics_t* m, const rvn_ed_line_t* line,
+	float scroll_x, float y, rvn_color_t color) {
+	rvn_md_paint_inline(&ed->base, painter, m->font_id, m->bold_id, m->italic_id, m->font, m->size,
+		m->area.x - scroll_x, y, line->text, color);
+}
+
+static void rvn_ed_paint_markdown_run(RPainter* painter, const rvn_ed_metrics_t* m, const char* text, int begin, int end,
+	Rid font, rvn_color_t color, int code, float x, float y, float* pen) {
+	rvn_font_t* metrics;
+	float width;
+	if (end <= begin) return;
+	metrics = font == m->font_id ? m->font : rvn_font_resolve(font);
+	width = rvn_text_width(metrics, m->size, text + begin, end - begin);
+	if (code) {
+		rvn_paint_box(painter, rvn_rect(x + *pen - 2.0f, y, width + 4.0f, m->size + 6.0f), 3.0f,
+			rvn_color_fade(color, 0.08f), 0.0f, 0);
+	}
+	rvn_paint_text(painter, font, m->size, x + *pen, y + 1.0f, text + begin, end - begin, color);
+	*pen += width;
+}
+
+/* Wrapped rows still use the tokens of the whole source line, so markers hidden
+ * on one row do not reappear or lose their style on the next. */
+static void rvn_ed_paint_markdown_row(const rvn_text_editor_t* ed, RPainter* painter, const rvn_ed_metrics_t* m,
+	const rvn_ed_line_t* line, int begin, int end, const rvn_span_t* spans, int span_count, float x, float y, rvn_color_t color) {
+	float pen = 0.0f;
+	int i = begin, span = 0;
+	if (begin == 0 && line->length >= 2 && (line->text[0] == '-' || line->text[0] == '*' || line->text[0] == '+') && line->text[1] == ' ') {
+		rvn_paint_text(painter, m->font_id, m->size, x, y + 1.0f, "\xE2\x80\xA2 ", -1, color);
+		pen = rvn_text_width(m->font, m->size, "\xE2\x80\xA2 ", -1);
+		i = 2;
+	}
+	while (i < end) {
+		int stop = end, from, to, token = -1;
+		Rid font = m->font_id;
+		rvn_color_t run_color = color;
+		int code = R_FALSE;
+		while (span < span_count && spans[span].end <= i) span++;
+		if (span < span_count && spans[span].start <= i) {
+			const rvn_span_t* current = &spans[span];
+			token = current->token;
+			stop = rvn_mini(stop, current->end);
+		} else if (span < span_count) {
+			stop = rvn_mini(stop, spans[span].start);
+		}
+		from = i;
+		to = stop;
+		if (token == RVN_TOKEN_HEADING) {
+			int prefix = 0;
+			while (prefix < line->length && line->text[prefix] == '#') prefix++;
+			if (prefix < line->length && line->text[prefix] == ' ') prefix++;
+			from = rvn_maxi(from, prefix);
+			font = m->bold_id;
+		} else if (token == RVN_TOKEN_STRONG || token == RVN_TOKEN_EMPHASIS) {
+			int left = spans[span].start, right = spans[span].end;
+			while (left < right && (line->text[left] == '*' || line->text[left] == '_')) left++;
+			while (right > left && (line->text[right - 1] == '*' || line->text[right - 1] == '_')) right--;
+			from = rvn_maxi(from, left);
+			to = rvn_mini(to, right);
+			font = token == RVN_TOKEN_STRONG ? m->bold_id : m->italic_id;
+		} else if (token == RVN_TOKEN_STRING) {
+			int left = spans[span].start, right = spans[span].end;
+			while (left < right && line->text[left] == '`') left++;
+			while (right > left && line->text[right - 1] == '`') right--;
+			from = rvn_maxi(from, left);
+			to = rvn_mini(to, right);
+			code = R_TRUE;
+		} else if (token == RVN_TOKEN_LINK) {
+			int left = spans[span].start, right = spans[span].end;
+			run_color = rvn_widget_color(&ed->base, R_COLOR_LINK);
+			if (line->text[left] == '[') {
+				int close = left + 1;
+				while (close < right && line->text[close] != ']') close++;
+				from = rvn_maxi(from, left + 1);
+				to = rvn_mini(to, close);
+			} else if (line->text[left] == '<') {
+				from = rvn_maxi(from, left + 1);
+				to = rvn_mini(to, right - 1);
+			}
+		}
+		rvn_ed_paint_markdown_run(painter, m, line->text, from, to, font, run_color, code, x, y, &pen);
+		i = stop;
+	}
+}
+
 /* Draws text[begin..end) of a line at (x, y), tabs expanded, each span in its color. */
 static void rvn_ed_paint_text(RPainter* painter, const rvn_ed_metrics_t* m, const char* text, int begin, int end,
 	float x, float y, const rvn_span_t* spans, int span_count, rvn_color_t color) {
@@ -1068,8 +1155,14 @@ static void rvn_text_editor_paint(rvn_widget_t* widget, RPainter* painter) {
 				rvn_syntax_line(language, l->text, l->length, l->lex_in, spans, RVN_ED_MAX_SPANS, &span_count);
 				span_line = line;
 			}
-			rvn_ed_paint_text(painter, &m, l->text, begin, end, m.area.x - scroll_x, y,
-				spans, language ? span_count : 0, text);
+			if (ed->live_markdown && !has_selection && line != ed->caret.line) {
+				if (begin == 0 && end == l->length) rvn_ed_paint_markdown_line(ed, painter, &m, l, scroll_x, y, text);
+				else rvn_ed_paint_markdown_row(ed, painter, &m, l, begin, end, spans, language ? span_count : 0,
+					m.area.x - scroll_x, y, text);
+			} else {
+				rvn_ed_paint_text(painter, &m, l->text, begin, end, m.area.x - scroll_x, y,
+					spans, language ? span_count : 0, text);
+			}
 		}
 		/* markers: a wavy line under what they are about */
 		for (marker = 0; marker < ed->marker_count; marker++) {
@@ -2721,6 +2814,18 @@ int Rtext_editor_get_markdown(Rid id) {
 	RVN_EDITOR(ed, id, R_FALSE);
 	language = rvn_ed_language(ed);
 	return language && (rvn_language_desc(language)->flags & R_LANGUAGE_FORMATTED_TEXT) != 0;
+}
+
+void Rtext_editor_set_live_markdown(Rid id, int enabled) {
+	RVN_EDITOR_VOID(ed, id);
+	ed->live_markdown = enabled != 0;
+	if (enabled) rvn_ed_set_language(ed, "Markdown");
+	rvn_widget_invalidate_paint(&ed->base);
+}
+
+int Rtext_editor_get_live_markdown(Rid id) {
+	RVN_EDITOR(ed, id, R_FALSE);
+	return ed->live_markdown != 0;
 }
 
 const char* Rtext_editor_get_language(Rid id) {

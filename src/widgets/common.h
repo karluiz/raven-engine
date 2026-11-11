@@ -169,6 +169,8 @@ void rvn_md_free(rvn_md_t* md);
 rvn_vec2_t rvn_md_layout(rvn_md_t* md, const rvn_widget_t* widget, Rid font, float size, float width);
 /** Draws what the last layout placed, from (x, y) in the widget. `hot_link`: the link under the pointer, or -1. */
 void rvn_md_paint(const rvn_md_t* md, const rvn_widget_t* widget, RPainter* painter, float x, float y, rvn_color_t color, int hot_link);
+void rvn_md_paint_inline(const rvn_widget_t* widget, RPainter* painter, Rid font, Rid bold, Rid italic,
+	rvn_font_t* metrics_font, float size, float x, float y, const char* source, rvn_color_t color);
 /** Link at a point of the laid out text, or -1. */
 int rvn_md_link_at(const rvn_md_t* md, float x, float y);
 /** Address of a link, or NULL. */
