@@ -435,6 +435,11 @@ void Rslot_set_fill(Rid id, float coefficient) {
 	rvn_slot_changed(child);
 }
 
+float Rslot_get_fill(Rid id) {
+	rvn_widget_t* child = rvn_widget_check(id, 0, __func__);
+	return child ? child->slot.fill : 0.0f;
+}
+
 void Rslot_set_max_size(Rid id, float max_size) {
 	RVN_WIDGET_VOID(child, id, 0);
 	child->slot.max_size = max_size > 0.0f ? max_size : 0.0f;

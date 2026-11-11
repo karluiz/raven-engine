@@ -246,6 +246,7 @@ extern "C" {
 	 * In a Splitter, the coefficient is the relative size of the pane.
 	 */
 	RAVEN_API void Rslot_set_fill(Rid child, float coefficient);
+	RAVEN_API float Rslot_get_fill(Rid child);
 
 	/** @brief Upper bound of the slot along the panel direction. 0 = none. VBox, HBox. */
 	RAVEN_API void Rslot_set_max_size(Rid child, float max_size);
