@@ -62,6 +62,16 @@ static float rvn_list_row_height(const rvn_widget_t* widget) {
 	return rvn_widget_metric(widget, R_METRIC_ROW_HEIGHT);
 }
 
+static void rvn_list_paint_row(RPainter* painter, const rvn_widget_t* widget, rvn_rect_t row, rvn_color_t color) {
+	float radius = rvn_widget_metric(widget, R_METRIC_CORNER_RADIUS);
+	if (radius > 0.0f && row.w > 8.0f && row.h > 4.0f) {
+		rvn_paint_box(painter, rvn_rect(row.x + 4.0f, row.y + 2.0f, row.w - 8.0f, row.h - 4.0f),
+			rvn_minf(radius, (row.h - 4.0f) * 0.5f), color, 0.0f, 0);
+	} else {
+		rvn_paint_rect(painter, row, color);
+	}
+}
+
 static rvn_vec2_t rvn_list_view_measure(rvn_widget_t* widget) {
 	rvn_list_view_t* list = (rvn_list_view_t*)widget;
 	/* a list is usually given its size by a fill slot; this is only a sensible default */
@@ -137,7 +147,7 @@ static void rvn_list_view_paint(rvn_widget_t* widget, RPainter* painter) {
 	if (list->selected >= 0) {
 		/* the selection slides from the previous row to the new one; a list without the keyboard focus shows it dimmer */
 		float y = rvn_paint_spring(painter, &list->select_y, row * (float)list->selected, R_MOTION_SNAPPY);
-		rvn_paint_row(painter, widget, rvn_rect(1.0f, 1.0f + y - offset, content_width, row),
+		rvn_list_paint_row(painter, widget, rvn_rect(1.0f, 1.0f + y - offset, content_width, row),
 			focused ? selection : rvn_color_mix(selection, rvn_widget_color(widget, R_COLOR_INPUT), 0.45f));
 	} else {
 		list->select_y.started = R_FALSE;
@@ -147,7 +157,7 @@ static void rvn_list_view_paint(rvn_widget_t* widget, RPainter* painter) {
 		if (i == list->selected) {
 			/* (drawn above) */
 		} else if (i == list->hot && (widget->flags & RVN_WF_HOVERED) && painter->enabled) {
-			rvn_paint_row(painter, widget, line, rvn_widget_color(widget, R_COLOR_ROW_HOVERED));
+			rvn_list_paint_row(painter, widget, line, rvn_widget_color(widget, R_COLOR_ROW_HOVERED));
 		}
 		rvn_paint_text_in(painter, R_INVALID_ID, rvn_widget_font_size(widget, 0.0f),
 			rvn_rect(line.x + padding, line.y, rvn_maxf(0.0f, line.w - padding * 2.0f), row), 0.0f, rvn_list_text(list, i), -1, text);

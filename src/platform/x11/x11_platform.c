@@ -88,6 +88,10 @@ static struct {
 	Atom targets;
 	Atom incr;
 	Atom paste_property;
+	Atom image_png;
+	Atom image_jpeg;
+	Atom image_bmp;
+	Atom image_tga;
 	Atom net_supported;
 	Atom net_supporting_wm_check;
 	Atom net_wm_moveresize;
@@ -255,6 +259,10 @@ static int rvn_x11_init(rvn_pevent_handler_t handler, rvn_pregion_handler_t regi
 	g_x11.targets = XInternAtom(g_x11.display, "TARGETS", False);
 	g_x11.incr = XInternAtom(g_x11.display, "INCR", False);
 	g_x11.paste_property = XInternAtom(g_x11.display, "RVN_PASTE", False);
+	g_x11.image_png = XInternAtom(g_x11.display, "image/png", False);
+	g_x11.image_jpeg = XInternAtom(g_x11.display, "image/jpeg", False);
+	g_x11.image_bmp = XInternAtom(g_x11.display, "image/bmp", False);
+	g_x11.image_tga = XInternAtom(g_x11.display, "image/tga", False);
 	g_x11.net_supported = XInternAtom(g_x11.display, "_NET_SUPPORTED", False);
 	g_x11.net_supporting_wm_check = XInternAtom(g_x11.display, "_NET_SUPPORTING_WM_CHECK", False);
 	g_x11.net_wm_moveresize = XInternAtom(g_x11.display, "_NET_WM_MOVERESIZE", False);
@@ -834,6 +842,46 @@ static char* rvn_x11_clipboard_get(void) {
 	}
 }
 
+static uint8_t* rvn_x11_clipboard_get_image(size_t* data_size) {
+	const Atom formats[] = {g_x11.image_png, g_x11.image_jpeg, g_x11.image_bmp, g_x11.image_tga};
+	size_t format_index;
+	if (data_size) *data_size = 0;
+	if (XGetSelectionOwner(g_x11.display, g_x11.clipboard_atom) == g_x11.helper) return NULL;
+
+	for (format_index = 0; format_index < sizeof(formats) / sizeof(formats[0]); format_index++) {
+		XEvent event;
+		Atom type = None;
+		int format = 0, waited = 0;
+		unsigned long count = 0, remaining = 0;
+		unsigned char* data = NULL;
+		uint8_t* result = NULL;
+
+		XConvertSelection(g_x11.display, g_x11.clipboard_atom, formats[format_index], g_x11.paste_property, g_x11.helper, CurrentTime);
+		XFlush(g_x11.display);
+		while (!XCheckTypedWindowEvent(g_x11.display, g_x11.helper, SelectionNotify, &event)) {
+			struct pollfd fd;
+			if (waited >= RVN_X11_CLIPBOARD_TIMEOUT_MS) break;
+			fd.fd = ConnectionNumber(g_x11.display);
+			fd.events = POLLIN;
+			fd.revents = 0;
+			poll(&fd, 1, 10);
+			waited += 10;
+		}
+		if (waited >= RVN_X11_CLIPBOARD_TIMEOUT_MS || event.xselection.property == None) continue;
+		XGetWindowProperty(g_x11.display, g_x11.helper, g_x11.paste_property, 0, 0x1FFFFFFF, True, AnyPropertyType,
+			&type, &format, &count, &remaining, &data);
+		/* Encoded clipboard images stay bounded; incremental transfers are not supported. */
+		if (data && type != g_x11.incr && format == 8 && count > 0 && count <= 32 * 1024 * 1024) {
+			result = (uint8_t*)rvn_alloc((size_t)count);
+			memcpy(result, data, (size_t)count);
+			if (data_size) *data_size = (size_t)count;
+		}
+		if (data) XFree(data);
+		if (result) return result;
+	}
+	return NULL;
+}
+
 /* ---------------------------------------------------------------------------
  *  Events
  * ------------------------------------------------------------------------- */
@@ -1341,6 +1389,7 @@ const rvn_platform_t* rvn_platform_x11(void) {
 		.wake = rvn_x11_wake,
 		.clipboard_set = rvn_x11_clipboard_set,
 		.clipboard_get = rvn_x11_clipboard_get,
+		.clipboard_get_image = rvn_x11_clipboard_get_image,
 		.a11y_event = rvn_atspi_event,
 		.a11y_announce = rvn_atspi_announce,
 		.a11y_active = rvn_atspi_active,

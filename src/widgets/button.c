@@ -49,7 +49,12 @@ static void rvn_button_paint(rvn_widget_t* widget, RPainter* painter) {
 	float hover, press;
 
 	/* a button is soft: it flattens under the finger and springs back past its shape */
-	hover = rvn_widget_hover(widget, painter, hovered);
+	if (rvn_widget_has_class(widget, "instant-hover")) {
+		rvn_spring_set(&widget->hover, hovered ? 1.0f : 0.0f);
+		hover = widget->hover.value;
+	} else {
+		hover = rvn_widget_hover(widget, painter, hovered);
+	}
 	press = rvn_widget_press(widget, painter, pressed);
 	rvn_widget_squash(widget, press, rvn_widget_glass(widget) ? 0.13f : 0.09f);
 

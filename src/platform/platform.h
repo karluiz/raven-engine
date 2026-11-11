@@ -183,6 +183,8 @@ typedef struct rvn_platform_t {
 	void  (*clipboard_set)(const char* text);
 	/** Returns a rvn_alloc'ed string, or NULL. */
 	char* (*clipboard_get)(void);
+	/** Optional. Returns a rvn_alloc'ed encoded image and its byte size, or NULL. */
+	uint8_t* (*clipboard_get_image)(size_t* data_size);
 
 	/**
 	 * Optional (may be NULL). Called repeatedly while the UI thread is blocked

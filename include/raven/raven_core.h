@@ -460,6 +460,13 @@ extern "C" {
 	/** @return The clipboard text, or "" when empty. Valid until the next call. */
 	RAVEN_API const char* Rclipboard_get_text(void);
 
+	/**
+	 * @return An encoded image (PNG, JPEG, BMP, or TGA) from the clipboard,
+	 * allocated by Raven, or NULL when the clipboard has no supported image.
+	 * Release it with Rmemory_free. `data_size` may be NULL.
+	 */
+	RAVEN_API uint8_t* Rclipboard_get_image(size_t* data_size);
+
 
 	/* ============================================================================
 	 *  ERROR HANDLING

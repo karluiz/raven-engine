@@ -516,6 +516,12 @@ const char* Rclipboard_get_text(void) {
 	return g_rvn.clipboard ? g_rvn.clipboard : "";
 }
 
+uint8_t* Rclipboard_get_image(size_t* data_size) {
+	RVN_API_GUARD(NULL);
+	if (data_size) *data_size = 0;
+	return g_rvn.platform->clipboard_get_image ? g_rvn.platform->clipboard_get_image(data_size) : NULL;
+}
+
 /* ---------------------------------------------------------------------------
  *  Main loop
  * ------------------------------------------------------------------------- */
